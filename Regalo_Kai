@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jardín Digital</title>
+    <!-- Fuentes para estética cyber y elegante -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Montserrat:wght@300;400&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Reset y configuración a pantalla completa */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body, html {
+            width: 100%; height: 100%;
+            background-color: #030303; /* Fondo negro profundo inmersivo */
+            overflow: hidden; /* Evitar scroll */
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        /* Canvas principal para el renderizado gráfico */
+        canvas {
+            display: block; 
+            width: 100%; height: 100%;
+            position: absolute; 
+            top: 0; left: 0; 
+            z-index: 1;
+        }
+
+        /* Capa de interfaz de usuario para textos narrativos */
+        #ui-layer {
+            position: absolute; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            z-index: 2;
+            pointer-events: none; /* Permite interacciones con el canvas si las hubiera */
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between; 
+            align-items: center;
+            padding: 12vh 20px; /* Separación superior e inferior */
+        }
+        
+        /* Estilos de los contenedores de texto */
+        .text-box {
+            text-align: center; 
+            color: #ffffff;
+            font-family: 'Cinzel', serif; /* Tipografía elegante */
+            font-size: clamp(1.4rem, 4vw, 2.5rem); /* Responsive typography */
+            letter-spacing: 3px;
+            font-weight: 500;
+            /* Efecto de resplandor (glow) en el texto */
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.4);
+            min-height: 3rem; /* Previene saltos de layout al escribir */
+            opacity: 1;
+            max-width: 800px;
+        }
+        
+        /* Animación del cursor para el efecto máquina de escribir */
+        .cursor::after {
+            content: '|';
+            animation: blink 1s step-start infinite;
+            margin-left: 4px;
+            opacity: 1;
+        }
+        
+        @keyframes blink { 
+            50% { opacity: 0; } 
+        }
+    </style>
+</head>
+<body>
+    <!-- Lienzo donde se dibujará todo el jardín digital -->
+    <canvas id="digitalGarden"></canvas>
+    
+    <!-- Capa superpuesta para la narrativa -->
+    <div id="ui-layer">
+        <div id="act2-text" class="text-box"></div>
+        <div id="act3-text" class="text-box"></div>
+    </div>
+
+    <script>
+        /**
+         * MOTOR PRINCIPAL DEL JARDÍN DIGITAL
+         */
+        
+        const canvas = document.getElementById('digitalGarden');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let redFlower = null; // Declarar antes de resize() para evitar ReferenceError
+
+        // Gestión de redimensionamiento responsivo
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Reposicionar la flor roja si ya fue creada y se redimensiona la pantalla
+            if (redFlower) {
+                let scaleFactor = Math.min(width, height) / 1000; 
+                if (scaleFactor < 0.5) scaleFactor = 0.5;
+                let redStem = 250 * scaleFactor;
+                redFlower.baseX = width / 2;
+                redFlower.baseY = height / 2 + redStem * 0.6;
+            }
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- COMPONENTE 1: SISTEMA DE LUCIÉRNAGAS (PARTÍCULAS) ---
+
+        class Firefly {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                // Velocidades iniciales aleatorias
+                this.vx = (Math.random() - 0.5) * 20;
+                this.vy = (Math.random() - 0.5) * 20;
+                this.size = Math.random() * 2.2 + 0.8;
+                this.phase = Math.random() * Math.PI * 2; // Fase para el parpadeo
+                this.blinkSpeed = Math.random() * 0.03 + 0.01;
+            }
+            
+            update(dt) {
+                // Movimiento orgánico mediante ruido/variación sutil
+                this.vx += (Math.random() - 0.5) * 15 * dt;
+                this.vy += (Math.random() - 0.5) * 15 * dt;
+                
+                // Límite de velocidad para que floten suavemente
+                const maxSpeed = 25;
+                const speed = Math.hypot(this.vx, this.vy);
+                if (speed > maxSpeed) {
+                    this.vx = (this.vx / speed) * maxSpeed;
+                    this.vy = (this.vy / speed) * maxSpeed;
+                }
+
+                this.x += this.vx * dt;
+                this.y += this.vy * dt;
+
+                // Envoltura de pantalla (aparecen por el otro lado)
+                if (this.x < -20) this.x = width + 20;
+                if (this.x > width + 20) this.x = -20;
+                if (this.y < -20) this.y = height + 20;
+                if (this.y > height + 20) this.y = -20;
+
+                // Titileo/Parpadeo (oscillación de opacidad)
+                this.phase += this.blinkSpeed * dt * 60; 
+            }
+            
+            draw(ctx) {
+                // Oscilación de opacidad con onda seno
+                const opacity = 0.15 + 0.85 * Math.abs(Math.sin(this.phase));
+                
+                ctx.save();
+                ctx.globalAlpha = opacity;
+                ctx.fillStyle = '#ffee70'; // Amarillo cálido más visible
+                // Resplandor (Glow)
+                ctx.shadowBlur = 18;
+                ctx.shadowColor = '#ffc800';
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // --- COMPONENTES 2 Y 4: FLORES GEOMÉTRICAS/CYBER ---
+
+        class CyberFlower {
+            constructor(x, y, isRed = false) {
+                this.baseX = x;
+                this.baseY = y;
+                this.isRed = isRed;
+                
+                this.phase = 0; // 0:Crecimiento, 1:Botón, 2:Floración, 3:Marchitamiento
+                this.progress = 0;
+                
+                // Escala adaptativa según tamaño de pantalla
+                let scaleFactor = Math.min(width, height) / 1000; 
+                if (scaleFactor < 0.5) scaleFactor = 0.5;
+                
+                // Las flores rojas (centro) son significativamente más grandes
+                this.maxStemHeight = isRed ? 280 * scaleFactor : (40 + Math.random() * 40) * scaleFactor;
+                this.petalMaxLen = isRed ? 70 * scaleFactor : (25 + Math.random() * 15) * scaleFactor;
+                this.petalMaxWid = isRed ? 22 * scaleFactor : (8 + Math.random() * 6) * scaleFactor;
+                
+                this.opacity = 0;
+                this.dead = false;
+            }
+
+            update(dt) {
+                // Velocidades para cada fase
+                const growSpeed = 0.6;
+                const budSpeed = 1.2;
+                const bloomSpeed = 0.7;
+                const stayTime = 5.0; // Tiempo que permanece viva una flor blanca
+                const wiltSpeed = 0.25;
+
+                switch(this.phase) {
+                    case 0: // 1. Fase de crecimiento (tallo)
+                        this.progress += dt * growSpeed;
+                        this.opacity = Math.min(1, this.progress * 3);
+                        if (this.progress >= 1) { this.phase = 1; this.progress = 0; }
+                        break;
+                    case 1: // 2. Fase de botón
+                        this.progress += dt * budSpeed;
+                        if (this.progress >= 1) { this.phase = 2; this.progress = 0; }
+                        break;
+                    case 2: // 3. Fase de floración
+                        this.progress += dt * bloomSpeed;
+                        // Si es flor blanca, inicia marchitamiento tras 'stayTime'
+                        if (this.progress >= stayTime) {
+                            if (!this.isRed) {
+                                this.phase = 3;
+                                this.progress = 0;
+                            }
+                        }
+                        break;
+                    case 3: // 4. Fase de marchitamiento (SOLO BLANCAS)
+                        this.progress += dt * wiltSpeed;
+                        this.opacity = 1 - Math.min(1, this.progress); // Fade-out suave
+                        if (this.progress >= 1) { this.dead = true; }
+                        break;
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.opacity;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                // Configuración de estilo y resplandor (Glow)
+                if (this.isRed) {
+                    ctx.strokeStyle = '#ff3333'; // Rojo vibrante
+                    ctx.shadowColor = '#ff0000';
+                    ctx.shadowBlur = 25; // Glow más intenso
+                    ctx.lineWidth = 3;
+                } else {
+                    ctx.strokeStyle = '#ffffff'; // Blanco puro
+                    ctx.shadowColor = '#ffffff';
+                    ctx.shadowBlur = 12;
+                    ctx.lineWidth = 1.5;
+                }
+
+                // Cálculo de altura actual del tallo
+                let currentStemHeight = this.phase === 0 ? this.maxStemHeight * this.progress : this.maxStemHeight;
+                let topY = this.baseY - currentStemHeight;
+
+                // Dibujar Tallo
+                ctx.beginPath();
+                ctx.moveTo(this.baseX, this.baseY);
+                ctx.lineTo(this.baseX, topY);
+                ctx.stroke();
+
+                // Dibujar Nodo (punto intermedio)
+                if (currentStemHeight > this.maxStemHeight * 0.5) {
+                    let nodeY = this.baseY - this.maxStemHeight * 0.5;
+                    ctx.beginPath();
+                    // Forma geométrica (romboide pequeño) para el nodo
+                    ctx.moveTo(this.baseX, nodeY - 5);
+                    ctx.lineTo(this.baseX + 4, nodeY);
+                    ctx.lineTo(this.baseX, nodeY + 5);
+                    ctx.lineTo(this.baseX - 4, nodeY);
+                    ctx.closePath();
+                    ctx.stroke();
+                }
+
+                // Dibujar Botón Central
+                if (this.phase >= 1) {
+                    let budScale = this.phase === 1 ? this.progress : 1;
+                    if (this.phase === 3) budScale = 1; // Mantiene tamaño al marchitar
+                    let budRad = (this.isRed ? 10 : 5) * budScale;
+                    
+                    ctx.beginPath();
+                    ctx.arc(this.baseX, topY, budRad, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                // Dibujar 4 Pétalos Geométricos
+                if (this.phase >= 2) {
+                    let bloomProg = Math.min(1, this.progress);
+                    if (this.phase === 3) bloomProg = 1; // Mantiene despliegue al caer
+                    
+                    let pLen = this.petalMaxLen * bloomProg;
+                    let pWid = this.petalMaxWid * bloomProg;
+                    
+                    // Efectos de caída (marchitamiento)
+                    let droop = (this.phase === 3) ? this.progress * (Math.PI / 3) : 0;
+                    let fallY = (this.phase === 3) ? Math.pow(this.progress, 2) * 40 : 0;
+
+                    for (let i = 0; i < 4; i++) {
+                        ctx.save();
+                        // Traslación base, más efecto de caída si se marchita
+                        ctx.translate(this.baseX, topY + (this.phase === 3 ? fallY + (i*5)*this.progress : 0));
+                        
+                        // Rotaciones a 45º, 135º, 225º, 315º
+                        let baseAngle = (i * Math.PI / 2) - Math.PI / 4; 
+                        
+                        // Rotación de decaimiento
+                        if (this.phase === 3) {
+                            baseAngle += (i % 2 === 0) ? droop : -droop;
+                        }
+                        
+                        ctx.rotate(baseAngle);
+
+                        let offset = this.isRed ? 12 : 6; // Separación del botón
+                        
+                        // Contorno del Pétalo (Rombo/Diamante)
+                        ctx.beginPath();
+                        ctx.moveTo(0, offset);
+                        ctx.lineTo(pWid, pLen/2 + offset);
+                        ctx.lineTo(0, pLen + offset);
+                        ctx.lineTo(-pWid, pLen/2 + offset);
+                        ctx.closePath();
+                        ctx.stroke();
+
+                        // Líneas de trama interna (hatch lines cyber/vector)
+                        if (bloomProg > 0.4) {
+                            ctx.lineWidth = this.isRed ? 1.5 : 0.8;
+                            ctx.beginPath();
+                            // Trama central vertical
+                            ctx.moveTo(0, offset);
+                            ctx.lineTo(0, pLen + offset);
+                            // Trama central horizontal cruzada
+                            ctx.moveTo(-pWid/2, pLen/2 + offset);
+                            ctx.lineTo(pWid/2, pLen/2 + offset);
+                            ctx.stroke();
+                        }
+
+                        ctx.restore();
+                    }
+                }
+                ctx.restore();
+            }
+        }
+
+        // --- INICIALIZACIÓN DEL SISTEMA ---
+
+        // 1. Instanciar Luciérnagas
+        const fireflies = [];
+        const numFireflies = window.innerWidth > 600 ? 120 : 60; // Menos en móviles
+        for (let i = 0; i < numFireflies; i++) {
+            fireflies.push(new Firefly());
+        }
+
+        // 2. Control de Flores Periféricas
+        let whiteFlowers = [];
+        const maxWhiteFlowers = window.innerWidth > 600 ? 18 : 10;
+
+        // Función para asegurar que nazcan en la periferia, sin tapar el texto
+        function getPeripheralSpawn() {
+            let x, y;
+            let isMobile = width < 600;
+            // Definir una "zona segura" en el centro que queremos evitar
+            let safeX = isMobile ? width * 0.15 : width * 0.25; 
+            let safeY = isMobile ? height * 0.25 : height * 0.3;
+            
+            let valid = false;
+            let failsafe = 0;
+            while (!valid && failsafe < 50) {
+                x = Math.random() * width;
+                y = Math.random() * height;
+                failsafe++;
+                
+                // Evitar los extremos absolutos superior/inferior
+                if (y < height * 0.15 || y > height * 0.9) continue;
+
+                let distToCenterX = Math.abs(x - width/2);
+                let distToCenterY = Math.abs(y - height/2);
+                
+                // Es válido si está fuera del rectángulo seguro
+                if (distToCenterX > safeX || distToCenterY > safeY) {
+                    valid = true;
+                }
+            }
+            if (!valid) { x = width * 0.1; y = height * 0.5; }
+            return {x, y};
+        }
+
+        // Variable para la flor principal (ya declarada arriba)
+
+        // --- COMPONENTE 3: MOTOR DE TEXTO Y NARRATIVA ---
+
+        let totalTime = 0;
+        let act2Triggered = false;
+        let act3Triggered = false;
+        
+        // Tiempos coreográficos (en segundos)
+        const timeAct2 = 4;  // Inicia frase 1 a los 4s
+        const timeAct3 = 12; // Inicia frase 2 y flor roja a los 12s
+
+        const elAct2 = document.getElementById('act2-text');
+        const elAct3 = document.getElementById('act3-text');
+
+        // Efecto máquina de escribir progresivo
+        function typeWriter(element, text, speed, callback) {
+            element.innerHTML = '';
+            element.classList.add('cursor');
+            let i = 0;
+            
+            let interval = setInterval(() => {
+                element.innerHTML = text.substring(0, i+1);
+                i++;
+                if (i >= text.length) {
+                    clearInterval(interval);
+                    element.classList.remove('cursor'); // Opcional: quitar cursor al terminar
+                    if (callback) callback();
+                }
+            }, speed);
+        }
+
+        // --- BUCLE DE RENDERIZADO PRINCIPAL (ANIMATION LOOP) ---
+
+        let lastTime = 0;
+
+        function animate(currentTime) {
+            if (lastTime === 0) lastTime = currentTime;
+            let dt = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+            
+            // Limitar dt para evitar saltos enormes si se cambia de pestaña
+            if (dt > 0.1) dt = 0.1; 
+            if (dt < 0) dt = 0; // Evitar tiempos negativos
+
+            totalTime += dt;
+
+            // 1. Limpiar Canvas (Fondo Negro)
+            ctx.clearRect(0, 0, width, height);
+
+            // 2. Actualizar y Dibujar Luciérnagas (Acto 1 Continuo)
+            fireflies.forEach(f => {
+                f.update(dt);
+                f.draw(ctx);
+            });
+
+            // 3. Gestión Narrativa: Acto 2 (Primera Frase)
+            if (totalTime >= timeAct2 && !act2Triggered) {
+                act2Triggered = true;
+                typeWriter(elAct2, "Entre luciérnagas... y destellos...", 100);
+            }
+
+            // 4. Gestión Narrativa: Acto 3 (Segunda Frase + FLOR ROJA CLÍMAX)
+            if (totalTime >= timeAct3 && !act3Triggered) {
+                act3Triggered = true;
+                typeWriter(elAct3, "Tú eres la única flor que quiero ver.", 90);
+                
+                // Nace la flor roja en el centro exacto
+                let scaleFactor = Math.min(width, height) / 1000; 
+                if (scaleFactor < 0.5) scaleFactor = 0.5;
+                let redStem = 280 * scaleFactor;
+                redFlower = new CyberFlower(width / 2, height / 2 + redStem * 0.6, true);
+            }
+
+            // 5. Gestión del Ciclo de Vida de Flores Blancas Periféricas
+            // Filtrar las muertas (completaron su marchitamiento)
+            whiteFlowers = whiteFlowers.filter(f => !f.dead);
+            
+            // Reaparecer nuevas flores aleatoriamente para mantener el jardín vivo
+            if (whiteFlowers.length < maxWhiteFlowers && Math.random() < 0.06) {
+                let pt = getPeripheralSpawn();
+                whiteFlowers.push(new CyberFlower(pt.x, pt.y, false));
+            }
+
+            // Dibujar Flores Blancas
+            whiteFlowers.forEach(f => {
+                f.update(dt);
+                f.draw(ctx);
+            });
+
+            // 6. Dibujar Flor Roja Central (Permanente)
+            if (redFlower) {
+                redFlower.update(dt);
+                redFlower.draw(ctx);
+            }
+
+            // Continuar loop
+            requestAnimationFrame(animate);
+        }
+
+        // Iniciar el motor
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>
